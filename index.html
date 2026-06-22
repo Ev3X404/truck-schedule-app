@@ -10,7 +10,10 @@
 <body>
     <div class="app-container">
         <header class="app-header">
-            <h1>ตารางเวลาเดินรถ (Truck Schedule)</h1>
+            <div class="header-title">
+                <h1>ตารางเวลาเดินรถ (Truck Schedule)</h1>
+                <span id="lastUpdated" class="last-updated">กำลังโหลดข้อมูล...</span>
+            </div>
             <div class="legend">
                 <div class="legend-item"><span class="color-box bg-blue"></span> รถมาถึงแล้ว (Arrived)</div>
                 <div class="legend-item"><span class="color-box bg-gray"></span> ยังไม่มาถึง (Not Arrived)</div>
@@ -18,8 +21,7 @@
         </header>
 
         <div class="timeline-container" id="timelineContainer">
-            <!-- Table will be injected here by JS -->
-        </div>
+            </div>
     </div>
     <script src="app.js"></script>
 </body>
