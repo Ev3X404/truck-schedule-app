@@ -1,4 +1,4 @@
-const DATA_URL = 'data.json'; // Can be replaced with Google Sheets CSV URL later
+const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRgkMkrdH-_UV401AMF8q3oMJI48mnVh6Yuk7_-m1t7rBiAzFv72oFjxxRWE9YBlu6eoua-L2bgRCcJ/pub?gid=0&single=true&output=csv'; // Can be replaced with Google Sheets CSV URL later
 // const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-xxxxxx/pub?gid=0&single=true&output=csv';
 
 const CELL_WIDTH = 60; // Must match CSS --cell-width
