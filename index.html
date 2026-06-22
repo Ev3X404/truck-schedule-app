@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Truck Schedule</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>ตารางเวลาเดินรถ (Truck Schedule)</h1>
+            <div class="legend">
+                <div class="legend-item"><span class="color-box bg-blue"></span> รถมาถึงแล้ว (Arrived)</div>
+                <div class="legend-item"><span class="color-box bg-gray"></span> ยังไม่มาถึง (Not Arrived)</div>
+            </div>
+        </header>
+
+        <div class="timeline-container" id="timelineContainer">
+            <!-- Table will be injected here by JS -->
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
