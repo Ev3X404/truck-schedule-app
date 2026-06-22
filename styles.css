@@ -13,13 +13,11 @@
     --row-height: 48px;
     --cell-width: 60px; /* Width for each hour slot */
 }
-
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
-
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--primary-bg);
@@ -27,14 +25,12 @@ body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
-
 .app-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
 }
-
 .app-header {
     padding: 16px 20px;
     background-color: var(--card-bg);
@@ -47,35 +43,29 @@ body {
     gap: 10px;
     z-index: 20;
 }
-
 .app-header h1 {
     font-size: 1.25rem;
     font-weight: 600;
 }
-
 .legend {
     display: flex;
     gap: 16px;
     font-size: 0.875rem;
     color: var(--text-muted);
 }
-
 .legend-item {
     display: flex;
     align-items: center;
     gap: 6px;
 }
-
 .color-box {
     width: 14px;
     height: 14px;
     border-radius: 3px;
     display: inline-block;
 }
-
 .bg-blue { background-color: var(--bar-arrived); }
 .bg-gray { background-color: var(--bar-not-arrived); }
-
 /* Timeline area */
 .timeline-container {
     flex: 1;
@@ -83,13 +73,11 @@ body {
     background-color: var(--card-bg);
     position: relative;
 }
-
 .schedule-table {
     border-collapse: separate;
     border-spacing: 0;
     min-width: 100%;
 }
-
 .schedule-table th, 
 .schedule-table td {
     padding: 0;
@@ -100,7 +88,6 @@ body {
     text-align: center;
     white-space: nowrap;
 }
-
 /* Header sticky top */
 .schedule-table thead th {
     position: sticky;
@@ -113,7 +100,6 @@ body {
     height: var(--header-height);
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-
 /* First columns sticky left */
 .col-dest {
     position: sticky;
@@ -129,36 +115,30 @@ body {
     font-size: 0.875rem;
     font-weight: 500;
 }
-
 /* Corner cell needs highest z-index so it stays on top of both scrolling directions */
 .schedule-table thead .col-dest {
     z-index: 15;
 }
-
 /* Timeline cells */
 .time-cell {
     min-width: var(--cell-width);
     width: var(--cell-width);
     position: relative;
 }
-
 .time-row {
     position: relative;
     /* We handle the bars absolutely positioned relative to the row container or the first cell */
 }
-
 /* Timeline Background Grid Lines */
 .grid-line {
     border-right: 1px dashed #f1f5f9;
 }
-
 /* The actual bar */
 .gantt-bar-wrapper {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     pointer-events: none; /* Let clicks pass through */
 }
-
 .gantt-bar {
     position: absolute;
     top: 10px; /* center vertically in the 48px row */
@@ -174,25 +154,56 @@ body {
     font-weight: 600;
     pointer-events: auto;
     cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
 }
-
+.bar-text {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+}
+/* Premium Tooltip styling */
+[data-tooltip] {
+    position: relative;
+}
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%) scale(0.9);
+    background-color: rgba(30, 41, 59, 0.95);
+    color: #ffffff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+}
 .gantt-bar:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     filter: brightness(1.05);
 }
-
 .status-arrived {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
 }
-
 .status-not-arrived {
     background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
     color: #1e293b;
 }
-
 /* Mobile optimizations */
 @media (max-width: 600px) {
     .app-header {
