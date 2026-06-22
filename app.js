@@ -1,5 +1,4 @@
-const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9kyQu5_1Ac6ea5bkVvWVy-_HbN43tC919Xf9sHP91Bt6LI7ggnCmUFoa_NbnVxGR5TKrVUJQwd6y1/pub?gid=0&single=true&output=csv'; // Can be replaced with Google Sheets CSV URL later
-// const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-xxxxxx/pub?gid=0&single=true&output=csv';
+const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9kyQu5_1Ac6ea5bkVvWVy-_HbN43tC919Xf9sHP91Bt6LI7ggnCmUFoa_NbnVxGR5TKrVUJQwd6y1/pub?gid=0&single=true&output=csv';
 
 const CELL_WIDTH = 60; // Must match CSS --cell-width
 
@@ -20,10 +19,17 @@ function adjustFrac(frac) {
     return f < 0.6 ? f + 1 : f;
 }
 
+// Simple CSV Parser
+function parseCSV(text) {
+    let lines = text.split('\n');
+    return lines.filter(line => line.trim() !== '').map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+}
+
 async function loadData() {
     try {
         const response = await fetch(DATA_URL);
-        const data = await response.json(); // Assuming JSON. For CSV, we'd use a simple CSV parser.
+        const text = await response.text();
+        const data = parseCSV(text);
         
         // Remove header
         const rows = data.slice(1);
@@ -71,11 +77,6 @@ function renderTimeline(data) {
     }
     html += `</tr></thead><tbody>`;
     
-    // 2. Rows
-    // Group by destination to simplify, or just render each row. The image has multiple trucks per destination.
-    // Let's render each truck as a separate row for now, or group them if desired. 
-    // The user requested: "ความยาวกราฟที่แสดงนั้น ยาวจากเวลาที่ Loading ถึง เวลาที่ departed ถ้ารอบเวลาดังกล่าวมีรถมาแล้วให้แสดงกราฟเป็นสีฟ้า ถ้ายังไม่มีรถมาให้เป็นสีเทา"
-    
     data.forEach((item, index) => {
         html += `<tr class="time-row">`;
         html += `<td class="col-dest" title="${item.dest}">${item.dest} <br><small style="color:#64748b;font-weight:normal">${item.type}</small></td>`;
@@ -113,7 +114,7 @@ function renderTimeline(data) {
     document.getElementById('timelineContainer').innerHTML = html;
 }
 
-// Auto-refresh every 60 seconds (useful for real-time when hooked to Google Sheets)
+// Auto-refresh every 60 seconds
 setInterval(loadData, 60000);
 
 // Initial load
