@@ -1,28 +1,65 @@
 const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9kyQu5_1Ac6ea5bkVvWVy-_HbN43tC919Xf9sHP91Bt6LI7ggnCmUFoa_NbnVxGR5TKrVUJQwd6y1/pub?gid=0&single=true&output=csv';
 
 const CELL_WIDTH = 60; // Must match CSS --cell-width
+const START_HOUR = 17; // Shift starts at 17:00
+const END_HOUR = 12;   // Shift ends at 12:00 next day
+const TOTAL_HOURS = 20; // 17:00 to 12:00 is 20 hours
 
-// Utility to convert Excel fractional time to HH:MM string
-function formatTime(frac) {
-    if (frac === undefined || frac === null || frac === '') return '';
-    let totalMinutes = Math.round(frac * 24 * 60);
-    let hours = Math.floor(totalMinutes / 60) % 24;
-    let minutes = totalMinutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+// Convert "HH:MM" string to relative hours from 17:00
+function timeToRelativeHours(timeStr) {
+    if (!timeStr) return null;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return null;
+    const hr = parseInt(parts[0], 10);
+    const min = parseInt(parts[1], 10);
+    if (isNaN(hr) || isNaN(min)) return null;
+    
+    const timeVal = hr + min / 60;
+    
+    // แบ่งช่วงเวลาให้ชัดเจน: 12:00 ถึง 16:59 ถือเป็นรถที่มาก่อนเวลา (Early arrival สำหรับกะนี้)
+    if (timeVal >= 12 && timeVal < 17) {
+        return timeVal - START_HOUR; // จะได้ค่าติดลบ กราฟจะเริ่มจากขอบซ้าย
+    } else if (timeVal >= START_HOUR) {
+        return timeVal - START_HOUR; // 17:00 ถึง 23:59
+    } else {
+        // ข้ามวัน (00:00 to 11:59)
+        return timeVal + (24 - START_HOUR);
+    }
 }
 
-// Handle cross-midnight logic: assuming schedule starts around 18:00 and ends around 14:00 next day.
-// Times < 0.6 (14:24) are considered "next day" and get +1 for plotting purposes.
-function adjustFrac(frac) {
-    const f = parseFloat(frac);
-    if (isNaN(f)) return null;
-    return f < 0.6 ? f + 1 : f;
-}
-
-// Simple CSV Parser
+// Robust CSV Parser (รองรับการมีลูกน้ำหรือ Comma ในข้อความ)
 function parseCSV(text) {
-    let lines = text.split('\n');
-    return lines.filter(line => line.trim() !== '').map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+    // ลบ Carriage Returns (\r) ที่มักจะติดมาจากฝั่ง Windows/Excel
+    text = text.replace(/\r/g, ''); 
+    const lines = text.split('\n');
+    const result = [];
+
+    for (let line of lines) {
+        if (line.trim() === '') continue;
+        const row = [];
+        let currentCell = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    currentCell += '"'; // Escaped quote
+                    i++;
+                } else {
+                    inQuotes = !inQuotes; // Toggle quotes
+                }
+            } else if (char === ',' && !inQuotes) {
+                row.push(currentCell.trim());
+                currentCell = '';
+            } else {
+                currentCell += char;
+            }
+        }
+        row.push(currentCell.trim());
+        result.push(row);
+    }
+    return result;
 }
 
 async function loadData() {
@@ -37,13 +74,14 @@ async function loadData() {
         const scheduleData = rows.map(r => {
             return {
                 status: r[0] || 'Unknown',
-                standby: adjustFrac(r[1]),
-                loading: adjustFrac(r[2]),
-                depart: adjustFrac(r[3]),
+                standby: r[1] || '',
+                loading: r[2] || '',
+                depart: r[3] || '',
                 dest: r[4] || 'Unknown',
-                type: r[5]
+                type: r[5] || 'Unknown'
             };
-        }).filter(r => r.loading !== null && r.depart !== null); // Only keep rows with valid loading/depart times
+        }).filter(r => r.dest && r.dest !== 'Unknown' && r.loading !== 'เวลาเข้า'); 
+        // เปลี่ยนมา Filter ให้แสดงแถวที่มีข้อมูลปลายทาง แม้รถจะยังไม่มีเวลา Depart ก็ตาม
         
         renderTimeline(scheduleData);
     } catch (e) {
@@ -54,51 +92,54 @@ async function loadData() {
 
 function renderTimeline(data) {
     if(data.length === 0) return;
-
-    // Find min and max time to define timeline range
-    let minTime = Math.min(...data.map(d => d.loading));
-    let maxTime = Math.max(...data.map(d => d.depart));
     
-    // Expand bounds to nearest hours
-    let startHour = Math.floor(minTime * 24) - 1; 
-    let endHour = Math.ceil(maxTime * 24) + 1;
-    
-    const totalHours = endHour - startHour;
-    
-    // Build HTML
     let html = `<table class="schedule-table">`;
     
     // 1. Header
     html += `<thead><tr>`;
     html += `<th class="col-dest">ปลายทาง (Destination)</th>`;
-    for(let i = 0; i < totalHours; i++) {
-        let displayHour = (startHour + i) % 24;
+    for(let i = 0; i < TOTAL_HOURS; i++) {
+        let displayHour = (START_HOUR + i) % 24;
         html += `<th class="time-cell">${displayHour.toString().padStart(2, '0')}:00</th>`;
     }
     html += `</tr></thead><tbody>`;
     
     data.forEach((item, index) => {
+        const loadingRel = timeToRelativeHours(item.loading);
+        const departRel = timeToRelativeHours(item.depart);
+        
         html += `<tr class="time-row">`;
         html += `<td class="col-dest" title="${item.dest}">${item.dest} <br><small style="color:#64748b;font-weight:normal">${item.type}</small></td>`;
         
         // Render time cells
-        for(let i = 0; i < totalHours; i++) {
-            // Put the bar wrapper inside the first time cell of the row
+        for(let i = 0; i < TOTAL_HOURS; i++) {
             if (i === 0) {
                 html += `<td class="time-cell grid-line" style="position: relative;">`;
                 
-                const leftPx = ((item.loading * 24) - startHour) * CELL_WIDTH;
-                const widthPx = ((item.depart - item.loading) * 24) * CELL_WIDTH;
-                
-                const isArrived = item.status.toLowerCase().includes('arrived');
-                const barClass = isArrived ? 'status-arrived' : 'status-not-arrived';
-                const label = isArrived ? 'Arrived' : 'Not Arrived';
-                
-                html += `<div class="gantt-bar ${barClass}" 
-                              style="left: ${leftPx}px; width: ${widthPx}px;"
-                              title="${label} | Loading: ${formatTime(item.loading)} - Depart: ${formatTime(item.depart)}">
-                              ${formatTime(item.loading)} - ${formatTime(item.depart)}
-                         </div>`;
+                // ถ้ารถมีการเข้าโหลด (Loading) ให้วาดกราฟ
+                if (loadingRel !== null) {
+                    const leftPx = loadingRel * CELL_WIDTH;
+                    let widthPx = CELL_WIDTH; // ความกว้างเริ่มต้นถ้ารถยังไม่ออก (1 ชั่วโมง)
+                    let displayDepart = item.depart || 'ยังไม่ออก';
+                    
+                    if (departRel !== null) {
+                        widthPx = (departRel - loadingRel) * CELL_WIDTH;
+                        if (widthPx < 0) widthPx = Math.abs(widthPx); // ป้องกันบัคความกว้างติดลบถ้ากรอกเวลาผิด
+                        if (widthPx === 0) widthPx = 20; // ถ้าเข้าและออกเวลาเดียวกัน ให้แสดงขีดบางๆ
+                    }
+                    
+                    // เช็คครอบคลุมทั้งคำว่า Arrived และภาษาไทย
+                    const isArrived = item.status.toLowerCase().includes('arrived') || item.status.includes('ถึง');
+                    const barClass = isArrived ? 'status-arrived' : 'status-not-arrived';
+                    const label = isArrived ? 'Arrived' : 'Not Arrived';
+                    const tooltipText = `ประเภทรถ: ${item.type} | สถานะ: ${label} | Loading: ${item.loading} - Depart: ${displayDepart}`;
+                    
+                    html += `<div class="gantt-bar ${barClass}" 
+                                  style="left: ${leftPx}px; width: ${widthPx}px;"
+                                  data-tooltip="${tooltipText}">
+                                  <span class="bar-text">${item.loading} - ${displayDepart}</span>
+                             </div>`;
+                }
                          
                 html += `</td>`;
             } else {
@@ -114,8 +155,5 @@ function renderTimeline(data) {
     document.getElementById('timelineContainer').innerHTML = html;
 }
 
-// Auto-refresh every 60 seconds
 setInterval(loadData, 60000);
-
-// Initial load
 loadData();
