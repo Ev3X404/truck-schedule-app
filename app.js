@@ -8,7 +8,8 @@ const TOTAL_HOURS = 20; // 17:00 to 12:00 is 20 hours
 // Convert "HH:MM" string to relative hours from 17:00
 function timeToRelativeHours(timeStr) {
     if (!timeStr) return null;
-    const parts = timeStr.split(':');
+    // ป้องกัน Error หากข้อมูลไม่ใช่ String
+    const parts = String(timeStr).split(':');
     if (parts.length < 2) return null;
     const hr = parseInt(parts[0], 10);
     const min = parseInt(parts[1], 10);
@@ -16,50 +17,20 @@ function timeToRelativeHours(timeStr) {
     
     const timeVal = hr + min / 60;
     
-    // แบ่งช่วงเวลาให้ชัดเจน: 12:00 ถึง 16:59 ถือเป็นรถที่มาก่อนเวลา (Early arrival สำหรับกะนี้)
+    // แก้บัคกราฟทะลุขอบขวา: ถ้ารถมาก่อน 17:00 ให้กราฟวาดไปทางซ้าย (ค่าติดลบ)
     if (timeVal >= 12 && timeVal < 17) {
-        return timeVal - START_HOUR; // จะได้ค่าติดลบ กราฟจะเริ่มจากขอบซ้าย
+        return timeVal - START_HOUR; 
     } else if (timeVal >= START_HOUR) {
         return timeVal - START_HOUR; // 17:00 ถึง 23:59
     } else {
-        // ข้ามวัน (00:00 to 11:59)
-        return timeVal + (24 - START_HOUR);
+        return timeVal + (24 - START_HOUR); // ข้ามวัน (00:00 ถึง 11:59)
     }
 }
 
-// Robust CSV Parser (รองรับการมีลูกน้ำหรือ Comma ในข้อความ)
+// ใช้ Parser ตัวเดิมของคุณที่เข้ากับโครงสร้าง Google Sheets ได้ดีเยี่ยมอยู่แล้ว
 function parseCSV(text) {
-    // ลบ Carriage Returns (\r) ที่มักจะติดมาจากฝั่ง Windows/Excel
-    text = text.replace(/\r/g, ''); 
-    const lines = text.split('\n');
-    const result = [];
-
-    for (let line of lines) {
-        if (line.trim() === '') continue;
-        const row = [];
-        let currentCell = '';
-        let inQuotes = false;
-
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                if (inQuotes && line[i + 1] === '"') {
-                    currentCell += '"'; // Escaped quote
-                    i++;
-                } else {
-                    inQuotes = !inQuotes; // Toggle quotes
-                }
-            } else if (char === ',' && !inQuotes) {
-                row.push(currentCell.trim());
-                currentCell = '';
-            } else {
-                currentCell += char;
-            }
-        }
-        row.push(currentCell.trim());
-        result.push(row);
-    }
-    return result;
+    let lines = text.split('\n');
+    return lines.filter(line => line.trim() !== '').map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
 }
 
 async function loadData() {
@@ -73,15 +44,16 @@ async function loadData() {
         
         const scheduleData = rows.map(r => {
             return {
-                status: r[0] || 'Unknown',
+                status: r[0] || '',
                 standby: r[1] || '',
                 loading: r[2] || '',
                 depart: r[3] || '',
                 dest: r[4] || 'Unknown',
-                type: r[5] || 'Unknown'
+                type: r[5] || ''
             };
-        }).filter(r => r.dest && r.dest !== 'Unknown' && r.loading !== 'เวลาเข้า'); 
-        // เปลี่ยนมา Filter ให้แสดงแถวที่มีข้อมูลปลายทาง แม้รถจะยังไม่มีเวลา Depart ก็ตาม
+        }).filter(r => r.loading && r.loading.trim() !== '' && r.loading !== 'เวลาเข้า'); 
+        // ^ แก้บัคที่ 1: กรองเอาเฉพาะคันที่เริ่ม "โหลดของแล้ว" เท่านั้น เพื่อซ่อนแถวว่าง 
+        // และถอดเงื่อนไข r.depart ออก เพื่อให้รถที่กำลังโหลดและยังไม่ออก แสดงอยู่บนจอได้
         
         renderTimeline(scheduleData);
     } catch (e) {
@@ -91,7 +63,10 @@ async function loadData() {
 }
 
 function renderTimeline(data) {
-    if(data.length === 0) return;
+    if(data.length === 0) {
+        document.getElementById('timelineContainer').innerHTML = `<div style="padding:20px; text-align:center; color:#64748b;">ไม่มีข้อมูลตารางเดินรถในขณะนี้</div>`;
+        return;
+    }
     
     let html = `<table class="schedule-table">`;
     
@@ -108,6 +83,9 @@ function renderTimeline(data) {
         const loadingRel = timeToRelativeHours(item.loading);
         const departRel = timeToRelativeHours(item.depart);
         
+        // ถ้าค่าเวลาผิดพลาดให้ข้ามไป
+        if (loadingRel === null) return;
+        
         html += `<tr class="time-row">`;
         html += `<td class="col-dest" title="${item.dest}">${item.dest} <br><small style="color:#64748b;font-weight:normal">${item.type}</small></td>`;
         
@@ -116,30 +94,29 @@ function renderTimeline(data) {
             if (i === 0) {
                 html += `<td class="time-cell grid-line" style="position: relative;">`;
                 
-                // ถ้ารถมีการเข้าโหลด (Loading) ให้วาดกราฟ
-                if (loadingRel !== null) {
-                    const leftPx = loadingRel * CELL_WIDTH;
-                    let widthPx = CELL_WIDTH; // ความกว้างเริ่มต้นถ้ารถยังไม่ออก (1 ชั่วโมง)
-                    let displayDepart = item.depart || 'ยังไม่ออก';
-                    
-                    if (departRel !== null) {
-                        widthPx = (departRel - loadingRel) * CELL_WIDTH;
-                        if (widthPx < 0) widthPx = Math.abs(widthPx); // ป้องกันบัคความกว้างติดลบถ้ากรอกเวลาผิด
-                        if (widthPx === 0) widthPx = 20; // ถ้าเข้าและออกเวลาเดียวกัน ให้แสดงขีดบางๆ
-                    }
-                    
-                    // เช็คครอบคลุมทั้งคำว่า Arrived และภาษาไทย
-                    const isArrived = item.status.toLowerCase().includes('arrived') || item.status.includes('ถึง');
-                    const barClass = isArrived ? 'status-arrived' : 'status-not-arrived';
-                    const label = isArrived ? 'Arrived' : 'Not Arrived';
-                    const tooltipText = `ประเภทรถ: ${item.type} | สถานะ: ${label} | Loading: ${item.loading} - Depart: ${displayDepart}`;
-                    
-                    html += `<div class="gantt-bar ${barClass}" 
-                                  style="left: ${leftPx}px; width: ${widthPx}px;"
-                                  data-tooltip="${tooltipText}">
-                                  <span class="bar-text">${item.loading} - ${displayDepart}</span>
-                             </div>`;
+                const leftPx = loadingRel * CELL_WIDTH;
+                let widthPx = CELL_WIDTH; // ความกว้างตั้งต้น
+                let displayDepart = item.depart || 'กำลังโหลด...';
+                
+                if (departRel !== null) {
+                    widthPx = (departRel - loadingRel) * CELL_WIDTH;
+                    // แก้บัคที่ 2: ป้องกันความกว้างกราฟติดลบ กรณีคนพิมพ์เวลาออกน้อยกว่าเวลาเข้า
+                    if (widthPx < 0) widthPx = Math.abs(widthPx);
+                    if (widthPx === 0) widthPx = 20; // กรณีเข้าและออกนาทีเดียวกัน ให้เป็นขีดบางๆ
                 }
+                
+                // แก้บัคที่ 3: รองรับสถานะภาษาไทย และป้องกันแอปพังถ้าไม่ได้กรอก Status
+                const statusStr = String(item.status).toLowerCase();
+                const isArrived = statusStr.includes('arrived') || statusStr.includes('ถึง');
+                const barClass = isArrived ? 'status-arrived' : 'status-not-arrived';
+                const label = isArrived ? 'Arrived' : 'Not Arrived';
+                const tooltipText = `ประเภทรถ: ${item.type || '-'} | สถานะ: ${label} | Loading: ${item.loading} - Depart: ${displayDepart}`;
+                
+                html += `<div class="gantt-bar ${barClass}" 
+                              style="left: ${leftPx}px; width: ${widthPx}px;"
+                              data-tooltip="${tooltipText}">
+                              <span class="bar-text">${item.loading} - ${displayDepart}</span>
+                         </div>`;
                          
                 html += `</td>`;
             } else {
